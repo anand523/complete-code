@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agrosphere Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-light: #f4f7f6; --bg-dark: #1a2a1f; --card-light: #ffffff;
+            --card-dark: #233a2b; --text-light: #1f2937; --text-dark: #e5e7eb; --accent: #22c55e;
+        }
+        body {
+            font-family: 'Poppins', sans-serif; transition: background-color 0.3s, color 0.3s;
+            position: relative;
+            cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewport='0 0 100 100' style='fill:black;font-size:24px;'><text y='50%'>🍃</text></svg>") 16 0, auto;
+        }
+        a, button, [onclick], input, select { cursor: pointer; }
+        body.light { background-color: var(--bg-light); color: var(--text-light); }
+        .light .card { background-color: var(--card-light); } .light .sidebar { background-color: #ffffff; }
+        body.dark { background-color: var(--bg-dark); color: var(--text-dark); }
+        .dark .card { background-color: var(--card-dark); } .dark .sidebar { background-color: #233a2b; }
+        .dark input, .dark table, .dark pre, .dark select { color: var(--text-dark); background-color: #1f2937; }
+        .card { border-radius: 1.25rem; position: relative; overflow: hidden; }
+        .sidebar-link.active { background-color: var(--accent); color: white; }
+        .sidebar-link.active i, .sidebar-link.active span { color: white !important; }
+        #auth-container { background-image: url('https://images.unsplash.com/photo-1525923838299-2312b6952827?q=80&w=2574&auto=format&fit=crop'); background-size: cover; background-position: center; }
+        .form-container { backdrop-filter: blur(15px) saturate(150%); -webkit-backdrop-filter: blur(15px) saturate(150%); background-color: rgba(255, 255, 255, 0.4); border-radius: 1.5rem; border: 1px solid rgba(209, 213, 219, 0.3); }
+        .flip-card { background-color: transparent; width: 100%; height: 100%; perspective: 1000px; }
+        .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.8s; transform-style: preserve-3d; }
+        .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+        .flip-card-front, .flip-card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+        .flip-card-back { transform: rotateY(180deg); }
+        .sidebar { transition: width 0.3s ease-in-out, transform 0.3s ease-in-out; width: 16rem; }
+        .sidebar-link span, .logo-text { transition: opacity 0.2s ease-in-out; }
+        .sidebar-collapsed .sidebar { width: 5.5rem; }
+        .sidebar-collapsed .sidebar-link span, .sidebar-collapsed .logo-text { opacity: 0; pointer-events: none; width: 0; }
+        .sidebar-collapsed .sidebar-link, .sidebar-collapsed .logo-container { justify-content: center; }
+        .sidebar-link .tooltip { position: absolute; left: 5.5rem; background-color: #1f2937; color: white; padding: 0.25rem 0.5rem; border-radius: 0.375rem; font-size: 0.875rem; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; transform: translateX(-10px); }
+        .sidebar-collapsed .sidebar-link:hover .tooltip { opacity: 1; transform: translateX(0); }
+        @media (max-width: 1024px) {
+            .sidebar { position: fixed; left: 0; top: 0; height: 100%; z-index: 40; transform: translateX(-100%); }
+            #app-container.sidebar-mobile-open .sidebar { transform: translateX(0); }
+            #app-container.sidebar-mobile-open .mobile-overlay { display: block; }
+            .sidebar-toggle { display: block; position: fixed; top: 1.5rem; left: 1.5rem; z-index: 50; }
+        }
+        .leaf-particle-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 0; }
+        .leaf-particle { position: absolute; font-size: 1.5rem; color: rgba(34, 197, 94, 0.3); opacity: 0; animation: leafFloat 20s infinite linear; filter: blur(0.5px); }
+        @keyframes leafFloat { 0% { transform: translateY(100vh) rotate(0deg); opacity: 0; } 10% { opacity: 0.8; } 80% { opacity: 0.8; } 100% { transform: translateY(-10vh) rotate(720deg); opacity: 0; } }
+        body.dark .leaf-particle { color: rgba(16, 185, 129, 0.2); }
+        .skeleton { animation: skeleton-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .skeleton-card { background-color: #e5e7eb; }
+        .dark .skeleton-card { background-color: #374151; }
+        /* Toast Notification Styles */
+        #toast-container { position: fixed; top: 1.25rem; right: 1.25rem; z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; }
+        .toast { padding: 1rem 1.5rem; border-radius: 0.75rem; color: white; font-weight: 600; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); transform: translateX(120%); opacity: 0; transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+        .toast.show { transform: translateX(0); opacity: 1; }
+        .toast-success { background-color: #22c55e; } .toast-error { background-color: #ef4444; } .toast-info { background-color: #3b82f6; }
+    </style>
+</head>
+<body class="light">
+
+    <div id="leaf-particle-container" class="leaf-particle-container"></div>
+    <div id="toast-container"></div>
+
+    <div id="auth-container" class="min-h-screen flex items-center justify-center relative z-10">
+        <div class="w-full max-w-md h-[620px]">
+            <div class="flip-card" id="flip-card">
+                <div class="flip-card-inner">
+                    <div class="flip-card-front">
+                        <div class="form-container p-8 md:p-12 h-full flex flex-col justify-center">
+                            <div class="text-center mb-6"><i class='bx bxs-leaf text-6xl text-green-800'></i><h1 class="text-3xl font-bold text-green-900 mt-2">Welcome Back</h1><p class="text-gray-700">Login to your garden</p></div>
+                            <form onsubmit="event.preventDefault(); login();">
+                                <div class="space-y-4">
+                                    <input id="login-email" type="email" placeholder="Email" required autocomplete="email" class="w-full p-3 bg-white/50 rounded-lg border border-white/30 focus:outline-none focus:ring-2 focus:ring-green-600">
+                                    <input id="login-password" type="password" placeholder="Password" required autocomplete="current-password" class="w-full p-3 bg-white/50 rounded-lg border border-white/30 focus:outline-none focus:ring-2 focus:ring-green-600">
+                                    <button id="login-button" type="submit" class="w-full p-3 bg-green-700 text-white rounded-lg font-semibold hover:bg-green-800 transition-colors disabled:opacity-50">Login</button>
+                                </div>
+                            </form>
+                            <div class="flex items-center my-4">
+                                <div class="flex-grow border-t border-gray-400"></div>
+                                <span class="flex-shrink mx-4 text-gray-600 text-sm">OR</span>
+                                <div class="flex-grow border-t border-gray-400"></div>
+                            </div>
+                            <button onclick="loginWithGoogle()" class="w-full p-3 bg-white text-gray-700 rounded-lg font-semibold border border-gray-300 hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                                <i class='bx bxl-google text-xl'></i>
+                                <span>Login with Google</span>
+                            </button>
+                            <p id="login-feedback" class="text-center text-sm font-semibold text-red-600 h-5 mt-2"></p>
+                            <p class="text-center text-sm text-gray-700 mt-6">Don't have an account? <a href="#" onclick="flipToRegister()" class="font-semibold text-green-800 hover:underline">Register here</a></p>
+                        </div>
+                    </div>
+                    <div class="flip-card-back">
+                        <div class="form-container p-8 md:p-12 h-full flex flex-col justify-center">
+                            <div class="text-center mb-8"><i class='bx bxs-florist text-6xl text-green-800'></i><h1 class="text-3xl font-bold text-green-900 mt-2">Create Account</h1><p class="text-gray-700">Start your journey with us</p></div>
+                             <form onsubmit="event.preventDefault(); register();">
+                                <div class="space-y-5">
+                                    <input id="reg-username" type="text" placeholder="Your Name" required autocomplete="name" class="w-full p-3 bg-white/50 rounded-lg border border-white/30 focus:outline-none focus:ring-2 focus:ring-green-600">
+                                    <input id="reg-email" type="email" placeholder="Your Email" required autocomplete="email" class="w-full p-3 bg-white/50 rounded-lg border border-white/30 focus:outline-none focus:ring-2 focus:ring-green-600">
+                                    <input id="reg-password" type="password" placeholder="Create a Password" required autocomplete="new-password" class="w-full p-3 bg-white/50 rounded-lg border border-white/30 focus:outline-none focus:ring-2 focus:ring-green-600">
+                                    <button id="register-button" type="submit" class="w-full p-3 bg-green-700 text-white rounded-lg font-semibold hover:bg-green-800 transition-colors disabled:opacity-50">Register</button>
+                                </div>
+                            </form>
+                            <p id="register-feedback" class="text-center text-sm font-semibold h-5 mt-2"></p>
+                            <p class="text-center text-sm text-gray-700 mt-4">Already have an account? <a href="#" onclick="flipToLogin()" class="font-semibold text-green-800 hover:underline">Login here</a></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="dashboard-container" class="hidden relative z-10">
+        <div id="mobile-overlay" class="hidden lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30" onclick="toggleSidebar()"></div>
+        <button onclick="toggleSidebar()" class="sidebar-toggle hidden p-2 rounded-full bg-white/50 dark:bg-black/50 backdrop-blur-sm"><i class='bx bx-menu text-2xl'></i></button>
+        <div id="app-container" class="flex h-screen">
+            <aside class="sidebar flex-shrink-0 p-4 flex flex-col justify-between shadow-lg">
+                <div class="h-full flex flex-col">
+                    <div class="logo-container flex items-center justify-between px-2 mb-8 h-10 flex-shrink-0"><a href="#" class="relative text-3xl font-bold tracking-wider whitespace-nowrap logo-text" style="color: var(--text-color);"><svg aria-hidden="true" class="absolute -top-3 -left-4 w-10 h-10 text-green-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M15.25,8.25a.75.75,0,0,0,-1.5,0v2.51a3.5,3.5,0,0,1,-3.25,3.49v-2.5a.75.75,0,0,0,-1.5,0v2.5a3.5,3.5,0,0,1,-3.25-3.49V8.25a.75.75,0,0,0,-1.5,0v2.51c0,2.68,2.04,4.9,4.75,4.99V16a.75.75,0,0,0,1.5,0v-.25c2.71-.1,4.75-2.31,4.75-4.99V8.25Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M10,2a.75.75,0,0,1,.75.75v10.5a.75.75,0,0,1-1.5,0V2.75A.75.75,0,0,1,10,2Z" clip-rule="evenodd" /></svg><span class="relative z-10">A</span>grosphere</a><button onclick="toggleSidebar()" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><i class='bx bx-menu text-2xl'></i></button></div>
+                    <nav class="space-y-2 overflow-y-auto">
+                        <a href="#dashboard" onclick="showSection('dashboard')" class="sidebar-link relative active flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-green-500 hover:text-white"><i class='bx bxs-dashboard text-2xl text-gray-500'></i><span class="font-semibold whitespace-nowrap">Dashboard</span><span class="tooltip">Dashboard</span></a>
+                        <a href="#history" onclick="showSection('history')" class="sidebar-link relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-green-500 hover:text-white"><i class='bx bx-history text-2xl text-gray-500'></i><span class="font-semibold whitespace-nowrap">History Logs</span><span class="tooltip">History Logs</span></a>
+                        <a href="#controls" onclick="showSection('controls')" class="sidebar-link relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-green-500 hover:text-white"><i class='bx bxs-droplet-half text-2xl text-gray-500'></i><span class="font-semibold whitespace-nowrap">Manual Controls</span><span class="tooltip">Manual Controls</span></a>
+                    </nav>
+                </div>
+                <div class="flex-shrink-0">
+                    <a href="#settings" onclick="showSection('settings')" class="sidebar-link relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-green-500 hover:text-white"><i class='bx bxs-cog text-2xl text-gray-500'></i><span class="font-semibold whitespace-nowrap">Settings</span><span class="tooltip">Settings</span></a>
+                    <a href="#" onclick="logout()" class="sidebar-link relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-red-500 hover:text-white mt-2"><i class='bx bx-log-out text-2xl text-gray-500'></i><span class="font-semibold whitespace-nowrap">Logout</span><span class="tooltip">Logout</span></a>
+                </div>
+            </aside>
+            <main class="flex-1 p-6 lg:p-8 overflow-y-auto relative">
+                <section id="dashboard-section">
+                    <div id="skeleton-loader"><div class="flex justify-between items-center mb-6"><div class="space-y-2"><div class="skeleton skeleton-card h-9 w-72 rounded-lg"></div><div class="skeleton skeleton-card h-5 w-48 rounded-md"></div></div><div class="skeleton skeleton-card h-24 w-72 rounded-2xl"></div></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6"><div class="skeleton skeleton-card h-24 rounded-2xl"></div><div class="skeleton skeleton-card h-24 rounded-2xl"></div><div class="skeleton skeleton-card h-24 rounded-2xl"></div><div class="skeleton skeleton-card h-24 rounded-2xl"></div></div><div class="skeleton skeleton-card h-96 w-full rounded-2xl"></div></div>
+                    <div id="dashboard-content" class="hidden">
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <h1 id="greeting-text" class="text-3xl font-bold">Good Morning!</h1>
+                                <p class="text-gray-500 dark:text-gray-400" id="current-date">--</p>
+                                <div class="flex items-end gap-2 mt-4">
+                                    <div id="plant-profile-container" class="relative w-full sm:w-64">
+                                        <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">Current Profile</label>
+                                        <input type="text" id="plant-search-input" placeholder="Search for a plant..." class="w-full p-2 mt-1 border rounded-lg bg-gray-50 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500">
+                                        <div id="plant-dropdown" class="hidden absolute w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg mt-1 max-h-60 overflow-y-auto z-20"></div>
+                                    </div>
+                                    <button onclick="openProfileModal()" class="p-2 h-11 bg-green-500 text-white rounded-lg hover:bg-green-600 text-2xl self-end">+</button>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-4 justify-start xl:justify-end">
+                                <div class="card p-4 flex items-center gap-4 shadow-lg"><i id="weather-icon" class='bx bx-cloud text-5xl text-gray-400'></i><div><h3 id="weather-temp" class="text-2xl font-bold">--°C</h3><p id="weather-desc" class="text-gray-500 dark:text-gray-400 text-sm">Loading...</p></div><div class="border-l border-gray-200 dark:border-gray-600 pl-4 ml-2 text-sm"><p>Humidity: <b id="weather-humidity">--%</b></p><p>Wind: <b id="weather-wind">-- km/h</b></p><p class="font-semibold mt-1" id="weather-city">--</p></div></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                            <div id="health-card" class="card p-6 flex flex-col items-center justify-center text-center"><i id="health-icon" class='bx bx-loader-alt bx-spin text-6xl text-gray-400'></i><h3 id="health-score" class="text-4xl font-bold mt-2">--%</h3><p id="health-status" class="font-semibold text-gray-400">Calculating...</p></div>
+                            <div class="card p-6 flex items-center gap-4"><i class='bx bxs-thermometer text-5xl text-red-500'></i><div><p class="text-gray-400">Temperature</p><h3 class="text-3xl font-bold"><span id="temp-val">--</span><span class="text-2xl text-gray-500">°C</span></h3></div></div>
+                            <div class="card p-6 flex items-center gap-4"><i class='bx bxs-droplet text-5xl text-blue-500'></i><div><p class="text-gray-400">Humidity</p><h3 class="text-3xl font-bold"><span id="hum-val">--</span><span class="text-2xl text-gray-500">%</span></h3></div></div>
+                            <div class="card p-6 flex items-center gap-4"><i class='bx bxs-florist text-5xl text-yellow-600'></i><div><p class="text-gray-400">Soil Moisture</p><h3 class="text-3xl font-bold"><span id="soil-val">--</span><span class="text-2xl text-gray-500">%</span></h3></div></div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-2 card p-6">
+                                <h3 class="text-xl font-semibold mb-4">📊 Live Sensor Data</h3>
+                                <div class="h-80 relative">
+                                    <canvas id="live-chart"></canvas>
+                                    <div id="chart-overlay" class="absolute inset-0 bg-white/70 dark:bg-gray-800/70 flex-col items-center justify-center text-center p-4 rounded-lg hidden">
+                                        <i class='bx bx-wifi-off text-5xl text-gray-400'></i>
+                                        <p class="mt-2 font-semibold text-gray-500 dark:text-gray-400">Hardware Disconnected</p>
+                                        <p class="text-sm text-gray-400">Graph will resume when data is received.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-6">
+                                <div class="card p-6"><h3 class="text-xl font-semibold mb-2">📷 Last Snapshot</h3><img id="last-snapshot-img" src="https://placehold.co/400x300/e2e8f0/e2e8f0?text=Waiting+for+image..." alt="Last plant snapshot" class="rounded-lg mb-2 cursor-pointer transition-transform hover:scale-105" onclick="openModal(this.src)"><p class="text-sm text-gray-400">Captured: <span id="last-snapshot-time">--</span></p></div>
+                                <div class="card p-6"><h3 class="text-xl font-semibold mb-2">🚨 Notifications</h3><ul id="notifications-list" class="space-y-2 text-sm max-h-24 overflow-y-auto"><li class="text-gray-400">No new notifications.</li></ul></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="history-section" class="hidden">
+                    <h1 class="text-3xl font-bold mb-6">History Logs</h1>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="card p-6"><h3 class="text-xl font-semibold mb-4">📅 Sensor Data History</h3><div class="max-h-96 overflow-y-auto"><table class="w-full text-left text-sm"><thead class="border-b-2"><tr><th class="p-2">Time</th><th>Temp</th><th>Humid</th><th>Soil %</th></tr></thead><tbody id="sensor-history-body"></tbody></table></div></div>
+                        <div class="card p-6"><h3 class="text-xl font-semibold mb-4">💧 Sprinkler Log</h3><div class="max-h-96 overflow-y-auto"><table class="w-full text-left text-sm"><thead class="border-b-2"><tr><th class="p-2">Time</th><th>Duration</th><th>Reason</th></tr></thead><tbody id="sprinkler-log-body"></tbody></table></div></div>
+                    </div>
+                    <div class="card p-6 mt-6"><h3 class="text-xl font-semibold mb-4">📸 Image History</h3><div id="image-history-gallery" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"><div class="text-gray-400 col-span-full text-center p-8"><i class='bx bx-image-alt text-5xl mb-2'></i><p>No images received yet.</p></div></div></div>
+                </section>
+
+                <section id="controls-section" class="hidden">
+                    <h1 class="text-3xl font-bold mb-6">Manual System Controls</h1>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="card p-8"><h3 class="text-xl font-semibold mb-4">💧 Manual Sprinkler Trigger</h3><p class="text-gray-400 mb-4">Activate the sprinkler for a specific duration.</p><div class="flex items-center gap-4"><div class="relative flex-grow"><input id="spray-duration" type="number" min="1" value="5" class="w-full p-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-green-600"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">seconds</span></div><button onclick="manualSpray()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">Trigger Now</button></div></div>
+                        <div class="card p-8"><h3 class="text-xl font-semibold mb-4">🔄 System Health & Restart</h3><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-2"><div id="system-status-indicator" class="w-4 h-4 rounded-full bg-yellow-400 animate-pulse"></div><span id="system-status-text">Connecting...</span></div><span class="text-sm text-gray-400">Last update: <span id="last-update-time">--</span></span></div><button onclick="showToast('System restart command sent!', 'info')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition">Restart ESP32 System</button></div>
+                    </div>
+                </section>
+                
+                <section id="settings-section" class="hidden">
+                    <h1 class="text-3xl font-bold mb-6">Settings</h1>
+                    <div class="max-w-2xl mx-auto card p-8">
+                         <div class="space-y-6">
+                            <div class="flex justify-between items-center p-4 rounded-lg border"><span>Enable Dark Mode</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="dark-mode-toggle" class="sr-only peer"><div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div></label></div>
+                            <div class="flex justify-between items-center p-4 rounded-lg border"><span>Enable Email Alerts</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" checked><div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div></label></div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+    
+    <div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50" onclick="closeModal()">
+        <span class="absolute top-4 right-6 text-white text-5xl font-bold cursor-pointer">&times;</span>
+        <img id="modal-img" src="" alt="Full-size snapshot" class="max-w-[90vw] max-h-[90vh] rounded-lg" onclick="event.stopPropagation()">
+    </div>
+    
+    <div id="add-profile-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+        <div class="card p-8 rounded-2xl w-full max-w-lg relative">
+            <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-2xl">&times;</button>
+            <h3 class="text-2xl font-bold mb-4">Add New Plant Profile</h3>
+            <div class="space-y-4">
+                <input id="new-plant-name" type="text" placeholder="Plant Name (e.g., Basil)" class="w-full p-2 border rounded-lg bg-transparent">
+                <div class="grid grid-cols-2 gap-4"><input id="new-temp-min" type="number" placeholder="Min Temp (°C)" class="w-full p-2 border rounded-lg bg-transparent"><input id="new-temp-max" type="number" placeholder="Max Temp (°C)" class="w-full p-2 border rounded-lg bg-transparent"></div>
+                <div class="grid grid-cols-2 gap-4"><input id="new-humidity-min" type="number" placeholder="Min Humidity (%)" class="w-full p-2 border rounded-lg bg-transparent"><input id="new-humidity-max" type="number" placeholder="Max Humidity (%)" class="w-full p-2 border rounded-lg bg-transparent"></div>
+                <div class="grid grid-cols-2 gap-4"><input id="new-soil-min" type="number" placeholder="Min Soil Moisture (%)" class="w-full p-2 border rounded-lg bg-transparent"><input id="new-soil-max" type="number" placeholder="Max Soil Moisture (%)" class="w-full p-2 border rounded-lg bg-transparent"></div>
+                <button onclick="saveNewProfile()" class="w-full p-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Save Profile</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- Firebase Configuration ---
+    // IMPORTANT: In a real application, you should not expose these keys directly in the code.
+    // Use environment variables or a backend service to protect your credentials.
+    
+    // App #1: Your project for user authentication and data
+    const userFirebaseConfig = {
+        apiKey: "AIzaSyBsFkCtWkTu_pO2q6iCYgUwRCko4rf6Mb8",
+        authDomain: "hackthon-3275c.firebaseapp.com",
+        projectId: "hackthon-3275c",
+        storageBucket: "hackthon-3275c.appspot.com",
+        messagingSenderId: "316037626448",
+        appId: "1:316037626448:web:d2994417d0d3b4b28f6f55",
+        databaseURL: "https://hackthon-3275c-default-rtdb.firebaseio.com/"
+    };
+
+    // App #2: Your friend's project for hardware data
+    const hardwareFirebaseConfig = {
+        apiKey: "AIzaSyBd1LQz4kAlhdi3YeGRchChhS6vFk_7G9U",
+        authDomain: "agronexus-9241c.firebaseapp.com",
+        projectId: "agronexus-9241c",
+        storageBucket: "agronexus-9241c.appspot.com",
+        messagingSenderId: "407720245634",
+        appId: "1:407720245634:web:19daac2acf547e2b6c379b",
+        databaseURL: "https://agronexus-9241c-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+
+    // --- Firebase Initialization ---
+    const userApp = firebase.initializeApp(userFirebaseConfig);
+    const hardwareApp = firebase.initializeApp(hardwareFirebaseConfig, 'hardware');
+
+    // --- Firebase Service References ---
+    const auth = userApp.auth(); 
+    const db = userApp.firestore(); 
+    const rtdb = hardwareApp.database(); 
+
+    // --- DOM Elements for Auth Feedback ---
+    const loginButton = document.getElementById('login-button');
+    const registerButton = document.getElementById('register-button');
+    const loginFeedback = document.getElementById('login-feedback');
+    const registerFeedback = document.getElementById('register-feedback');
+
+    // --- STATE & CONFIG ---
+    let liveChart;
+    let currentTheme = localStorage.getItem('theme') || 'light';
+    let currentData = { temperature: 0, humidity: 0, soilMoisture: 0 };
+    let plantProfiles = {
+        "Default (General)": { temp: [18, 29], humidity: [50, 70], soil: [40, 80] },
+        "Tomato": { temp: [21, 27], humidity: [65, 85], soil: [60, 80] },
+        "Orchid": { temp: [24, 29], humidity: [40, 70], soil: [30, 50] },
+    };
+    let activeProfile = plantProfiles["Default (General)"];
+    let systemHealthTimeout;
+    
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        applyTheme(currentTheme);
+        document.getElementById('dark-mode-toggle').checked = currentTheme === 'dark';
+        document.getElementById('dark-mode-toggle').addEventListener('change', toggleTheme);
+        createLeafParticles();
+        if (localStorage.getItem('sidebarCollapsed') === 'true') {
+            document.getElementById('app-container').classList.add('sidebar-collapsed');
+        }
+        const searchInput = document.getElementById('plant-search-input');
+        const dropdown = document.getElementById('plant-dropdown');
+        searchInput.addEventListener('keyup', () => populatePlantDropdown(searchInput.value));
+        searchInput.addEventListener('focus', () => dropdown.classList.remove('hidden'));
+        document.addEventListener('click', (e) => {
+            const profileContainer = document.getElementById('plant-profile-container');
+            if (profileContainer && !profileContainer.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                db.collection("users").doc(user.uid).get().then(doc => {
+                    const username = doc.exists ? doc.data().name : user.displayName || "User";
+                    showDashboard(username);
+                }).catch(err => {
+                    // This can happen if the client is offline when onAuthStateChanged fires
+                    console.warn("Could not fetch user document, possibly offline.", err);
+                    showDashboard(user.displayName || "User");
+                });
+            } else {
+                showLogin();
+            }
+        });
+    });
+
+    // --- AUTHENTICATION & PAGE FLOW ---
+    function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider)
+            .then((result) => {
+                const user = result.user;
+                // Check if the user document already exists
+                const userDocRef = db.collection("users").doc(user.uid);
+                return userDocRef.get().then(doc => {
+                    if (!doc.exists) {
+                        // Document doesn't exist, so this is a new user
+                        return userDocRef.set({
+                            name: user.displayName,
+                            email: user.email,
+                            createdAt: new Date()
+                        });
+                    }
+                });
+            })
+            .catch((error) => {
+                console.error("Google Sign-In Error:", error);
+                showToast(`Google login failed: ${error.message}`, 'error');
+            });
+    }
+
+    function showLogin() {
+        document.getElementById('dashboard-container').classList.add('hidden');
+        document.getElementById('auth-container').classList.remove('hidden');
+    }
+
+    function showDashboard(username) {
+        document.getElementById('auth-container').classList.add('hidden');
+        document.getElementById('dashboard-container').classList.remove('hidden');
+        initDashboard(username);
+    }
+    
+    function login() {
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+        loginFeedback.textContent = '';
+        if (!email || !password) {
+            loginFeedback.textContent = 'Please enter email and password.';
+            return;
+        }
+        loginButton.disabled = true;
+        loginButton.textContent = 'Logging in...';
+        auth.signInWithEmailAndPassword(email, password)
+            .catch((error) => {
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                    loginFeedback.textContent = 'Invalid email or password.';
+                } else {
+                    loginFeedback.textContent = 'An error occurred. Please try again.';
+                }
+            })
+            .finally(() => {
+                loginButton.disabled = false;
+                loginButton.textContent = 'Login';
+            });
+    }
+
+    function register() {
+        const name = document.getElementById('reg-username').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value.trim();
+        registerFeedback.textContent = '';
+        if (!name || !email || !password) {
+            registerFeedback.textContent = 'Please fill all fields.';
+            return;
+        }
+        if (password.length < 6) {
+            registerFeedback.textContent = 'Password must be at least 6 characters.';
+            return;
+        }
+        registerButton.disabled = true;
+        registerButton.textContent = 'Registering...';
+        
+        auth.createUserWithEmailAndPassword(email, password)
+            .then(userCredential => {
+                return db.collection("users").doc(userCredential.user.uid).set({ name, email, createdAt: new Date() });
+            })
+            .catch(error => {
+                registerFeedback.classList.add('text-red-600');
+                registerFeedback.textContent = error.code === 'auth/email-already-in-use' ? 'This email is already registered.' : 'Registration failed. Please try again.';
+            })
+            .finally(() => {
+                registerButton.disabled = false;
+                registerButton.textContent = 'Register';
+            });
+    }
+
+    function logout() {
+        auth.signOut();
+    }
+    
+    // --- DASHBOARD INITIALIZATION ---
+    let dashboardInitialized = false;
+    async function initDashboard(username) {
+        if (dashboardInitialized) return;
+        dashboardInitialized = true;
+        updateGreeting(username);
+        document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        await loadUserProfiles(); // Load user profiles from Firestore
+        populatePlantDropdown();
+        selectPlant("Default (General)");
+        initChart();
+        fetchWeather();
+        setupRealtimeListener();
+        setTimeout(() => {
+            document.getElementById('skeleton-loader').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+        }, 1000);
+    }
+
+    function updateGreeting(username) {
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+        document.getElementById('greeting-text').textContent = `${greeting}, ${username}!`;
+    }
+
+    // --- REALTIME DATA & SYSTEM HEALTH ---
+    function setSystemStatus(status) {
+        const indicator = document.getElementById('system-status-indicator');
+        const text = document.getElementById('system-status-text');
+        const chartOverlay = document.getElementById('chart-overlay');
+        indicator.classList.remove('animate-pulse');
+
+        if (status === 'online') {
+            indicator.className = 'w-4 h-4 rounded-full bg-green-500';
+            text.textContent = 'Online';
+            chartOverlay.classList.add('hidden');
+            chartOverlay.classList.remove('flex');
+        } else if (status === 'disconnected') {
+            indicator.className = 'w-4 h-4 rounded-full bg-red-500';
+            text.textContent = 'Disconnected';
+            chartOverlay.classList.remove('hidden');
+            chartOverlay.classList.add('flex');
+        } else {
+            indicator.className = 'w-4 h-4 rounded-full bg-yellow-400 animate-pulse';
+            text.textContent = 'Connecting...';
+            chartOverlay.classList.add('hidden');
+            chartOverlay.classList.remove('flex');
+        }
+    }
+
+    function setupRealtimeListener() {
+        const logsQuery = rtdb.ref('/logs').orderByKey().limitToLast(1);
+        
+        logsQuery.on('child_added', (snapshot) => {
+            clearTimeout(systemHealthTimeout);
+            setSystemStatus('online');
+
+            const latestData = snapshot.val();
+
+            if (latestData && typeof latestData.temperature !== 'undefined') {
+                const formattedData = {
+                    temperature: parseFloat(latestData.temperature.toFixed(1)),
+                    humidity: parseFloat(latestData.humidity.toFixed(1)),
+                    soilMoisture: convertSoilMoistureToPercentage(latestData.soil_moisture)
+                };
+                handleRealData(formattedData);
+            }
+
+            systemHealthTimeout = setTimeout(() => {
+                setSystemStatus('disconnected');
+            }, 15000); 
+
+        }, (errorObject) => { 
+            console.error("Firebase data listener failed: ", errorObject);
+            setSystemStatus('disconnected');
+        });
+    }
+    
+    function convertSoilMoistureToPercentage(rawValue) {
+        const DRY_VALUE = 4095, WET_VALUE = 1800; // Calibrated values for the sensor
+        const percentage = 100 * (DRY_VALUE - rawValue) / (DRY_VALUE - WET_VALUE);
+        return Math.max(0, Math.min(100, Math.round(percentage)));
+    }
+    
+    let lastProcessedTimestamp = null;
+    function handleRealData({ temperature, humidity, soilMoisture }) {
+        const timeLabel = new Date().toLocaleTimeString();
+        currentData = { temperature, humidity, soilMoisture };
+        
+        animateValue('temp-val', temperature);
+        animateValue('hum-val', humidity);
+        animateValue('soil-val', soilMoisture);
+        updateHealthScoreUI(calculateHealthScore(currentData));
+
+        if (timeLabel !== lastProcessedTimestamp) {
+            lastProcessedTimestamp = timeLabel;
+            if(liveChart.data.labels.length > 20) {
+                liveChart.data.labels.shift();
+                liveChart.data.datasets.forEach(ds => ds.data.shift());
+            }
+            liveChart.data.labels.push(timeLabel);
+            liveChart.data.datasets[0].data.push(temperature);
+            liveChart.data.datasets[1].data.push(humidity);
+            liveChart.data.datasets[2].data.push(soilMoisture);
+            liveChart.update();
+            
+            document.getElementById('sensor-history-body').insertAdjacentHTML('afterbegin', `<tr><td class="p-2">${timeLabel}</td><td>${temperature}°C</td><td>${humidity}%</td><td>${soilMoisture}%</td></tr>`);
+        }
+        
+        document.getElementById('last-update-time').textContent = timeLabel;
+    }
+
+    // --- UI & NAVIGATION ---
+    function toggleSidebar() {
+        const appContainer = document.getElementById('app-container');
+        if (window.innerWidth < 1024) {
+            appContainer.classList.toggle('sidebar-mobile-open');
+        } else {
+            appContainer.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('sidebarCollapsed', appContainer.classList.contains('sidebar-collapsed'));
+        }
+    }
+
+    function showSection(sectionId) {
+        ['dashboard', 'history', 'controls', 'settings'].forEach(id => document.getElementById(`${id}-section`)?.classList.add('hidden'));
+        document.getElementById(`${sectionId}-section`)?.classList.remove('hidden');
+        document.querySelectorAll('.sidebar-link').forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === `#${sectionId}`);
+        });
+        if (window.innerWidth < 1024) document.getElementById('app-container').classList.remove('sidebar-mobile-open');
+    }
+    
+    function flipToRegister() { document.getElementById('flip-card').classList.add('flipped'); }
+    function flipToLogin() { document.getElementById('flip-card').classList.remove('flipped'); }
+
+    // --- THEME, MODALS, & PROFILES ---
+    function applyTheme(theme) { document.body.className = theme; localStorage.setItem('theme', theme); currentTheme = theme; if (liveChart) updateChartTheme(); }
+    function toggleTheme() { applyTheme(document.body.classList.contains('light') ? 'dark' : 'light'); }
+    function openModal(src) { document.getElementById('modal-img').src=src; document.getElementById('image-modal').classList.remove('hidden'); }
+    function closeModal() { document.getElementById('image-modal').classList.add('hidden'); }
+    function openProfileModal() { document.getElementById('add-profile-modal').classList.remove('hidden'); }
+    function closeProfileModal() { document.getElementById('add-profile-modal').classList.add('hidden'); }
+    
+    async function saveNewProfile() {
+        const name = document.getElementById('new-plant-name').value.trim();
+        const values = ['temp-min', 'temp-max', 'humidity-min', 'humidity-max', 'soil-min', 'soil-max'].map(id => parseFloat(document.getElementById('new-' + id).value));
+        
+        if (!name || values.some(isNaN)) {
+            showToast('Please fill all fields correctly.', 'error'); 
+            return;
+        }
+        if (plantProfiles[name]) { 
+            showToast('A profile with this name already exists.', 'error'); 
+            return; 
+        }
+        
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+            showToast('You must be logged in to save profiles.', 'error');
+            return;
+        }
+
+        const newProfile = { temp: values.slice(0,2), humidity: values.slice(2,4), soil: values.slice(4,6) };
+        
+        try {
+            await db.collection('users').doc(userId).collection('plantProfiles').doc(name).set(newProfile);
+            plantProfiles[name] = newProfile;
+            closeProfileModal();
+            populatePlantDropdown();
+            selectPlant(name);
+            showToast('New profile saved successfully!', 'success');
+        } catch (error) {
+            console.error("Error saving profile: ", error);
+            showToast('Failed to save profile.', 'error');
+        }
+    }
+
+    async function loadUserProfiles() {
+        const userId = auth.currentUser?.uid;
+        if (!userId) return;
+
+        try {
+            const snapshot = await db.collection('users').doc(userId).collection('plantProfiles').get();
+            snapshot.forEach(doc => {
+                plantProfiles[doc.id] = doc.data();
+            });
+        } catch (error) {
+            console.error("Error loading user profiles: ", error);
+            showToast('Could not load your saved profiles.', 'error');
+        }
+    }
+
+    function populatePlantDropdown(filter = '') {
+        const dropdown = document.getElementById('plant-dropdown');
+        dropdown.innerHTML = Object.keys(plantProfiles)
+            .filter(p => p.toLowerCase().includes(filter.toLowerCase()))
+            .map(p => `<a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700" onclick="event.preventDefault(); selectPlant('${p}')">${p}</a>`).join('');
+    }
+    function selectPlant(plantName) {
+        document.getElementById('plant-search-input').value = plantName;
+        document.getElementById('plant-dropdown').classList.add('hidden');
+        activeProfile = plantProfiles[plantName];
+        if (currentData.temperature !== 0) updateHealthScoreUI(calculateHealthScore(currentData));
+    }
+    
+    // --- CHARTING ---
+    function initChart() {
+        const ctx = document.getElementById('live-chart').getContext('2d');
+        liveChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [ { label: 'Temp', data: [], borderColor: '#ef4444', tension: 0.3, yAxisID: 'yTemp' }, { label: 'Humidity', data: [], borderColor: '#3b82f6', tension: 0.3, yAxisID: 'yHumidity' }, { label: 'Soil', data: [], borderColor: '#eab308', tension: 0.3, yAxisID: 'yHumidity' } ] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: {}, yTemp: { type: 'linear', position: 'left', title: { display: true, text: 'Temperature (°C)', color: '#ef4444' }, ticks: { color: '#ef4444' } }, yHumidity: { type: 'linear', position: 'right', title: { display: true, text: 'Humidity / Soil (%)', color: '#3b82f6' }, ticks: { color: '#3b82f6' }, min: 0, max: 100 } } } });
+        updateChartTheme();
+    }
+    function updateChartTheme() {
+        if (!liveChart) return;
+        const isDark = currentTheme === 'dark';
+        const color = isDark ? '#e5e7eb' : '#1f2937';
+        liveChart.options.scales.x.ticks.color = color;
+        liveChart.options.plugins.legend.labels.color = color;
+        liveChart.options.scales.yTemp.title.color = liveChart.options.scales.yTemp.ticks.color = '#ef4444';
+        liveChart.options.scales.yHumidity.title.color = liveChart.options.scales.yHumidity.ticks.color = '#3b82f6';
+        liveChart.update();
+    }
+
+    // --- MISC UTILITIES ---
+    function calculateHealthScore({ temperature, humidity, soilMoisture }) {
+        let score = 100;
+        const check = (val, [min, max]) => val < min || val > max;
+        if (check(temperature, activeProfile.temp)) score -= 33.3;
+        if (check(humidity, activeProfile.humidity)) score -= 33.3;
+        if (check(soilMoisture, activeProfile.soil)) score -= 33.3;
+        score = Math.max(0, Math.round(score));
+        if (score >= 85) return { score, status: 'Excellent', color: 'text-green-500', icon: 'bx-happy-heart-eyes' };
+        if (score >= 60) return { score, status: 'Good', color: 'text-yellow-500', icon: 'bx-happy-alt' };
+        return { score, status: 'Warning', color: 'text-red-500', icon: 'bx-sad' };
+    }
+    
+    function updateHealthScoreUI({score, status, color, icon}) {
+        document.getElementById('health-score').innerText = `${score}%`;
+        const statusEl = document.getElementById('health-status');
+        statusEl.innerText = status;
+        statusEl.className = `font-semibold ${color}`;
+        document.getElementById('health-icon').className = `bx ${icon} text-6xl ${color}`;
+    }
+    
+    function animateValue(id, end) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const start = parseFloat(el.textContent) || 0;
+        if (start === end) return;
+        let startTimestamp;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / 500, 1);
+            el.textContent = (progress * (end - start) + start).toFixed(1);
+            if (progress < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }
+
+    function createLeafParticles() {
+        const container = document.getElementById('leaf-particle-container');
+        if (!container) return;
+        const emojis = ['🌿', '🍃', '🌱', '☘️'];
+        for (let i = 0; i < 30; i++) {
+            const leaf = document.createElement('div');
+            leaf.className = 'leaf-particle';
+            leaf.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            leaf.style.left = `${Math.random() * 100}vw`;
+            leaf.style.animationDuration = `${15 + Math.random() * 10}s`;
+            leaf.style.animationDelay = `${Math.random() * 15}s`;
+            container.appendChild(leaf);
+        }
+    }
+    
+    async function fetchWeather() {
+        const apiKey = '405aa3ba9bf38d8ea04f974bedfca150'; // Note: This key is public.
+        const getWeatherData = async (url, cityName = null) => {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Weather data not found');
+                const data = await response.json();
+                const { main, weather, wind, name } = data;
+                updateWeatherUI({ temp: Math.round(main.temp), description: weather[0].main, icon: getWeatherIcon(weather[0].id), humidity: main.humidity, wind: Math.round(wind.speed * 3.6), name: cityName || name });
+            } catch (error) { document.getElementById('weather-desc').innerText = 'Weather unavailable'; }
+        };
+        const locationSuccess = pos => getWeatherData(`https://api.openweathermap.org/data/2.5/weather?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&appid=${apiKey}&units=metric`);
+        const locationError = () => getWeatherData(`https://api.openweathermap.org/data/2.5/weather?q=Delhi&appid=${apiKey}&units=metric`, "Delhi");
+        navigator.geolocation.getCurrentPosition(locationSuccess, locationError);
+    }
+    function updateWeatherUI({temp, description, icon, humidity, wind, name}) {
+        document.getElementById('weather-icon').className = `bx ${icon} text-5xl text-yellow-400`;
+        document.getElementById('weather-temp').innerText = `${temp}°C`;
+        document.getElementById('weather-desc').innerText = description;
+        document.getElementById('weather-humidity').innerText = `${humidity}%`;
+        document.getElementById('weather-wind').innerText = `${wind} km/h`;
+        document.getElementById('weather-city').innerText = `${name}, IN`;
+    }
+    function getWeatherIcon(id) {
+        if (id < 300) return 'bxs-thunder-house'; if (id < 600) return 'bxs-rain'; if (id < 700) return 'bxs-snow'; if (id < 800) return 'bxs-layer'; if (id === 800) return 'bxs-sun'; return 'bxs-cloud';
+    }
+    
+    function manualSpray() {
+        const durationInput = document.getElementById('spray-duration');
+        const duration = parseInt(durationInput.value, 10);
+        if (isNaN(duration) || duration <= 0) {
+            showToast("Please enter a valid duration.", "error");
+            return;
+        }
+        rtdb.ref('commands/spray').set({ duration: duration, timestamp: Date.now() });
+        showToast(`Sprinkler command sent for ${duration} seconds.`, 'success');
+    }
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.addEventListener('transitionend', () => toast.remove());
+        }, 3000);
+    }
+
+</script>
+</body>
+</html>
+
